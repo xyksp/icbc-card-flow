@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>ICBC 审核后台</title>
+  <style>
+    body { margin: 0; background: #f2f3f5; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    .admin-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; background: #fff; border-bottom: 1px solid #ececef; }
+    .admin-header h1 { margin: 0; font-size: 18px; color: #1d1d1f; }
+    .admin-back { background: #5b5b62; color: #fff; font-size: 12px; padding: 4px 12px; border-radius: 10px; text-decoration: none; }
+    .admin-login { max-width: 380px; margin: 80px auto; background: #fff; border-radius: 12px; padding: 32px 28px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,.05); }
+    .admin-login h2 { font-size: 18px; margin: 0 0 8px; }
+    .admin-hint { color: #9a9aa0; font-size: 12.5px; margin: 0 0 18px; line-height: 1.6; }
+    .admin-hint code { background: #f0f0f3; padding: 1px 6px; border-radius: 4px; }
+    .admin-login input { width: 100%; height: 44px; border: 1px solid #ececef; border-radius: 8px; padding: 0 12px; font-size: 14px; outline: none; margin-bottom: 14px; box-sizing: border-box; }
+    .admin-login input:focus { border-color: #e60012; }
+    .admin-login .btn-primary { width: 100%; height: 44px; border: none; border-radius: 22px; background: #e60012; color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; }
+    .admin-panel { max-width: 960px; margin: 0 auto; padding: 18px 16px 40px; }
+    .admin-panel.hidden { display: none; }
+    .admin-summary { display: flex; gap: 14px; flex-wrap: wrap; background: #fff; border-radius: 10px; padding: 14px 18px; margin-bottom: 14px; font-size: 13px; color: #6b6b70; }
+    .admin-summary b { color: #1d1d1f; font-size: 16px; margin-left: 4px; }
+    .admin-addbar { display: flex; gap: 10px; margin-bottom: 12px; }
+    .admin-addbar input { flex: 1; height: 40px; border: 1px solid #ececef; border-radius: 8px; padding: 0 12px; font-size: 14px; outline: none; }
+    .admin-addbar input:focus { border-color: #e60012; }
+    .admin-addbar .btn-primary { padding: 0 16px; height: 40px; border: none; border-radius: 20px; background: #e60012; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .admin-toolbar { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+    .btn-ghost { padding: 0 16px; height: 36px; border: 1px solid #d4d4d8; border-radius: 18px; background: #fff; color: #6b6b70; font-size: 13px; cursor: pointer; }
+    .btn-ghost:hover { background: #fff0f0; border-color: #e60012; color: #e60012; }
+    .admin-list { display: flex; flex-direction: column; gap: 10px; }
+    .empty { background: #fff; border-radius: 10px; padding: 40px; text-align: center; color: #9a9aa0; font-size: 14px; }
+    .admin-item { background: #fff; border-radius: 10px; padding: 14px 16px; }
+    .ai-row1 { display: flex; justify-content: space-between; align-items: center; }
+    .ai-phone { font-size: 15px; font-weight: 600; color: #1d1d1f; }
+    .ai-status { padding: 2px 10px; border-radius: 10px; font-size: 12px; }
+    .ai-status.is-approved { background: #e6f7ed; color: #2bb673; }
+    .ai-status.is-pending { background: #fff7e6; color: #f08800; }
+    .ai-row2 { color: #6b6b70; font-size: 12.5px; margin-top: 6px; line-height: 1.6; }
+    .ai-row3 { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .btn-mini { padding: 5px 12px; border-radius: 14px; font-size: 12px; border: 1px solid; cursor: pointer; background: #fff; }
+    .btn-reject { color: #e60012; border-color: #e60012; }
+    .admin-foot { color: #9a9aa0; font-size: 12px; margin-top: 18px; text-align: center; line-height: 1.6; }
+    .admin-foot code { background: #f0f0f3; padding: 1px 6px; border-radius: 4px; }
+    .toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%) translateY(20px); background: rgba(0,0,0,.82); color: #fff; padding: 10px 18px; border-radius: 20px; font-size: 13px; opacity: 0; pointer-events: none; transition: all .25s; z-index: 99; max-width: 80vw; }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+  <div class="admin-header">
+    <h1>ICBC 信用卡申请 · 审核后台</h1>
+    <a href="index.html" class="admin-back">返回前台</a>
+  </div>
+  <div class="admin-login" id="admin-login">
+    <h2>管理员登录</h2>
+    <p class="admin-hint">默认密码：admin123<br>请填入拥有该仓库写权限的 GitHub Token（仅保存在本机浏览器）</p>
+    <input type="password" id="admin-pwd" placeholder="请输入管理员密码" />
+    <input type="password" id="admin-token" placeholder="请输入 GitHub Token（ghp_...）" />
+    <button class="btn-primary" id="admin-login-btn">进入后台</button>
+  </div>
+  <div class="admin-panel hidden" id="admin-panel">
+    <div class="admin-summary">
+      <span>总工号：<b id="stat-total">0</b></span>
+      <span>已申请：<b id="stat-applied">0</b></span>
+    </div>
+    <div class="admin-addbar">
+      <input type="text" id="new-gonghao" placeholder="输入工号（4-20位数字）" maxlength="20" />
+      <button class="btn-primary" id="admin-add">新增工号</button>
+    </div>
+    <div class="admin-toolbar">
+      <button class="btn-ghost" id="admin-refresh">刷新</button>
+      <button class="btn-ghost" id="admin-clear">清空全部</button>
+      <button class="btn-ghost" id="admin-logout">退出</button>
+    </div>
+    <div class="admin-list" id="admin-list"></div>
+    <p class="admin-foot">新增的工号可直接在前台登录；删除后无法登录。<br>数据存于 GitHub（<code>data/users.json</code>），多设备共享。</p>
+  </div>
+  <div class="toast" id="toast"></div>
+  <script src="app-admin.js?v=23"></script>
+</body>
+</html>

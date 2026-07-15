@@ -1,5 +1,5 @@
 // ICBC H5 service worker —— 前台 + 后台离线缓存
-const CACHE = 'icbc-v24';
+const CACHE = 'icbc-v25';
 const ASSETS = [
   './',
   './index.html',

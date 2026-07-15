@@ -8,227 +8,334 @@
   var FILE_PATH = "data/users.json";
   var API_URL = "https://api.github.com/repos/" + REPO + "/contents/" + FILE_PATH;
 
-  function $(s) { return document.querySelector(s); }
-  function $all(s) { return Array.prototype.slice.call(document.querySelectorAll(s)); }
-
-  function loadState() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch (e) { return {}; }
+  function log(msg, data) {
+    console.log("[ICBC Admin] " + msg, data || "");
   }
-  function saveState(s) { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }
 
   function getToken() {
-    try { return (localStorage.getItem(TOKEN_KEY) || "").trim(); } catch (e) { return ""; }
-  }
-  function saveToken(t) {
-    try { localStorage.setItem(TOKEN_KEY, t); } catch (e) {}
-  }
-
-  function toast(m) {
-    var t = $(".toast");
-    if (!t) return;
-    t.textContent = m;
-    t.classList.add("show");
-    setTimeout(function () { t.classList.remove("show"); }, 3000);
+    var t = localStorage.getItem(TOKEN_KEY);
+    log("getToken:", t ? "Token exists (" + t.substring(0, 8) + "...)" : "Token NOT FOUND");
+    return t || "";
   }
 
-  // UTF-8 安全 base64
-  function b64encode(str) {
-    return btoa(unescape(encodeURIComponent(str)));
-  }
-  function b64decode(b64) {
-    return decodeURIComponent(escape(atob(b64.replace(/\s/g, ""))));
+  function saveToken(token) {
+    log("saveToken:", token ? "Saving token..." : "Clearing token");
+    localStorage.setItem(TOKEN_KEY, token);
   }
 
-  // 通过 GitHub API（带 token）读取文件，返回 { sha, json }
-  function ghApiGet(cb) {
+  function b64DecodeUnicode(str) {
+    try {
+      return decodeURIComponent(atob(str).split("").map(function(c) {
+        return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(""));
+    } catch (e) {
+      log("b64DecodeUnicode error:", e.message);
+      return "";
+    }
+  }
+
+  function b64EncodeUnicode(str) {
+    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+      return String.fromCharCode("0x" + p1);
+    }));
+  }
+
+  function ghApiGet(callback) {
     var token = getToken();
-    if (!token) { cb(new Error("missing-token")); return; }
-    var x = new XMLHttpRequest();
-    x.open("GET", API_URL + "?t=" + Date.now(), true);
-    x.setRequestHeader("Authorization", "token " + token);
-    x.setRequestHeader("Accept", "application/vnd.github.v3+json");
-    x.onload = function () {
-      if (x.status === 200) {
-        try {
-          var d = JSON.parse(x.responseText);
-          var json = JSON.parse(b64decode(d.content));
-          cb(null, { sha: d.sha, json: json });
-        } catch (e) { cb(new Error("解析失败")); }
-      } else if (x.status === 404) {
-        cb(null, { sha: null, json: { users: [] } });
-      } else if (x.status === 401) {
-        cb(new Error("Token 无效或无权限（401）"));
-      } else {
-        cb(new Error("HTTP " + x.status));
+    log("ghApiGet starting, token length:", token.length);
+    
+    if (!token) {
+      log("ERROR: No token in localStorage!");
+      callback && callback(new Error("请先输入 GitHub Token 并登录"), null);
+      return;
+    }
+
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", API_URL, true);
+    xhr.setRequestHeader("Authorization", "token " + token);
+    xhr.setRequestHeader("Accept", "application/vnd.github.v3+json");
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState === 4) {
+        log("ghApiGet response status:", xhr.status);
+        log("ghApiGet response text (first 200 chars):", xhr.responseText.substring(0, 200));
+        
+        if (xhr.status === 200) {
+          try {
+            var data = JSON.parse(xhr.responseText);
+            log("ghApiGet JSON parsed, has content:", !!data.content);
+            var content = data.content ? b64DecodeUnicode(data.content) : "{\"users\":[]}";
+            log("ghApiGet decoded content (first 100 chars):", content.substring(0, 100));
+            var json = JSON.parse(content);
+            callback && callback(null, { sha: data.sha, data: json });
+          } catch (e) {
+            log("ghApiGet PARSE ERROR:", e.message);
+            callback && callback(new Error("解析失败: " + e.message), null);
+          }
+        } else if (xhr.status === 401) {
+          log("ghApiGet 401 Unauthorized - Token invalid or expired");
+          callback && callback(new Error("Token 无效或已过期，请重新输入"), null);
+        } else {
+          log("ghApiGet HTTP error:", xhr.status);
+          callback && callback(new Error("GitHub API 错误: " + xhr.status), null);
+        }
       }
     };
-    x.onerror = function () { cb(new Error("网络错误")); };
-    x.send();
+    xhr.onerror = function () {
+      log("ghApiGet network error");
+      callback && callback(new Error("网络请求失败"), null);
+    };
+    xhr.send();
   }
 
-  // 写入文件（带 sha；sha 为 null 表示新建）
-  function ghApiPut(json, sha, cb) {
+  function ghApiPut(contentObj, sha, callback) {
     var token = getToken();
-    if (!token) { cb(new Error("missing-token")); return; }
-    var body = { message: "Update users", content: b64encode(JSON.stringify(json, null, 2)) };
-    if (sha) body.sha = sha;
-    var x = new XMLHttpRequest();
-    x.open("PUT", API_URL, true);
-    x.setRequestHeader("Authorization", "token " + token);
-    x.setRequestHeader("Accept", "application/vnd.github.v3+json");
-    x.setRequestHeader("Content-Type", "application/json");
-    x.onload = function () {
-      if (x.status === 200 || x.status === 201) { cb(null); }
-      else if (x.status === 409) { cb(new Error("conflict")); }
-      else if (x.status === 401) { cb(new Error("Token 无效或无权限（401）")); }
-      else { cb(new Error("HTTP " + x.status)); }
+    if (!token) {
+      callback && callback(new Error("Token 不存在"));
+      return;
+    }
+
+    var body = {
+      message: "Update users.json",
+      content: b64EncodeUnicode(JSON.stringify(contentObj)),
+      sha: sha
     };
-    x.onerror = function () { cb(new Error("网络错误")); };
-    x.send(JSON.stringify(body));
+
+    var xhr = new XMLHttpRequest();
+    xhr.open("PUT", API_URL, true);
+    xhr.setRequestHeader("Authorization", "token " + token);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState === 4) {
+        if (xhr.status === 200 || xhr.status === 201) {
+          callback && callback(null, JSON.parse(xhr.responseText));
+        } else if (xhr.status === 409) {
+          callback && callback(new Error("文件冲突，请刷新重试"));
+        } else {
+          callback && callback(new Error("保存失败: " + xhr.status));
+        }
+      }
+    };
+    xhr.onerror = function () {
+      callback && callback(new Error("网络请求失败"));
+    };
+    xhr.send(JSON.stringify(body));
   }
 
   function renderList() {
-    ghApiGet(function (err, data) {
+    var listEl = document.getElementById("user-list");
+    var countEl = document.getElementById("user-count");
+    if (!listEl) return;
+
+    listEl.innerHTML = "<div style=\"color:#999\">加载中...</div>";
+    
+    ghApiGet(function (err, result) {
       if (err) {
-        var el = document.getElementById("admin-list");
-        if (el) el.innerHTML = '<div class="empty">读取失败：' + err.message + '</div>';
-        toast("读取失败：" + err.message);
+        log("renderList error:", err.message);
+        listEl.innerHTML = "<div style=\"color:#c00\">读取失败：" + err.message + "</div>";
         return;
       }
-      var gUsers = (data && data.json && data.json.users) || [];
-      var s = loadState();
-      var statTotal = document.getElementById("stat-total");
-      var statApplied = document.getElementById("stat-applied");
-      if (statTotal) statTotal.textContent = gUsers.length;
-      if (statApplied) statApplied.textContent = gUsers.filter(function (u) {
-        var us = s.users && s.users[u]; return us && us.idInfo;
-      }).length;
-      var list = document.getElementById("admin-list");
-      if (!list) return;
-      if (gUsers.length === 0) { list.innerHTML = '<div class="empty">暂无工号，请在上方新增</div>'; return; }
-      list.innerHTML = gUsers.map(function (phone) {
-        var us = s.users && s.users[phone];
-        var idTxt = us && us.idInfo ? (us.idInfo.name + " / " + us.idInfo.idNo) : "（未申请）";
-        var badge = us && us.idInfo ? '<span class="ai-status is-approved">已申请</span>' : '<span class="ai-status is-pending">待审核</span>';
-        return '<div class="admin-item"><div class="ai-row1"><span class="ai-phone">工号 ' + phone + '</span>' + badge + '</div><div class="ai-row2">信息：' + idTxt + '</div><div class="ai-row3"><button class="btn-mini btn-reject" data-phone="' + phone + '">删除</button></div></div>';
-      }).join("");
-      $all(".btn-reject").forEach(function (b) {
-        b.onclick = function () {
-          var phone = b.dataset.phone;
-          if (!confirm("确认删除工号 " + phone + "？")) return;
-          ghApiGet(function (err2, data2) {
-            if (err2) { toast("读取失败：" + err2.message); return; }
-            var arr = ((data2 && data2.json && data2.json.users) || []).filter(function (x) { return x !== phone; });
-            ghApiPut({ users: arr }, data2.sha, function (err3) {
-              if (err3 && err3.message === "conflict") {
-                // sha 过期，重试一次
-                ghApiGet(function (e4, d4) {
-                  if (e4) { toast("保存失败：" + e4.message); return; }
-                  var arr2 = ((d4 && d4.json && d4.json.users) || []).filter(function (x) { return x !== phone; });
-                  ghApiPut({ users: arr2 }, d4.sha, function (e5) {
-                    if (e5) { toast("保存失败：" + e5.message); return; }
-                    clearLocal(phone); toast("已删除 " + phone); renderList();
-                  });
-                });
-                return;
-              }
-              if (err3) { toast("保存失败：" + err3.message); return; }
-              clearLocal(phone); toast("已删除 " + phone); renderList();
-            });
-          });
-        };
+      
+      var users = result.data.users || [];
+      log("renderList loaded, user count:", users.length);
+      if (countEl) countEl.textContent = users.length;
+      
+      if (users.length === 0) {
+        listEl.innerHTML = "<div style=\"color:#999\">暂无工号</div>";
+        return;
+      }
+      
+      var html = "";
+      users.forEach(function (id) {
+        html += "<div class=\"user-item\" style=\"padding:10px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center\">" +
+          "<span>" + id + "</span>" +
+          "<button class=\"btn-delete\" data-id=\"" + id + "\" style=\"padding:4px 12px;background:#c00;color:#fff;border:none;border-radius:4px;cursor:pointer\">删除</button>" +
+          "</div>";
+      });
+      listEl.innerHTML = html;
+
+      document.querySelectorAll(".btn-delete").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var id = this.getAttribute("data-id");
+          if (confirm("确定删除工号 " + id + " 吗？")) {
+            deleteUser(id);
+          }
+        });
       });
     });
   }
 
-  function clearLocal(phone) {
-    var s = loadState();
-    if (s.users && s.users[phone]) { delete s.users[phone]; saveState(s); }
-  }
-
-  function doAdd() {
+  function addUser() {
     var input = document.getElementById("new-gonghao");
-    var phone = input ? input.value.trim() : "";
-    if (!/^\d{4,20}$/.test(phone)) { toast("请输入 4-20 位数字工号"); return; }
-    var token = getToken();
-    if (!token) { toast("请先填写 GitHub Token"); return; }
-    ghApiGet(function (err, data) {
-      if (err) { toast("读取失败：" + err.message); return; }
-      var arr = (data && data.json && data.json.users) || [];
-      if (arr.indexOf(phone) !== -1) { toast("工号已存在"); return; }
-      arr.push(phone);
-      ghApiPut({ users: arr }, data.sha, function (err2) {
-        if (err2 && err2.message === "conflict") {
-          ghApiGet(function (e3, d3) {
-            if (e3) { toast("保存失败：" + e3.message); return; }
-            var arr2 = (d3 && d3.json && d3.json.users) || [];
-            if (arr2.indexOf(phone) !== -1) { toast("工号已存在"); return; }
-            arr2.push(phone);
-            ghApiPut({ users: arr2 }, d3.sha, function (e4) {
-              if (e4) { toast("保存失败：" + e4.message); return; }
-              finishAdd(phone);
-            });
-          });
-          return;
+    if (!input) {
+      log("ERROR: input #new-gonghao not found!");
+      alert("页面元素错误");
+      return;
+    }
+    
+    var id = input.value.trim();
+    log("addUser called with id:", id);
+    
+    if (!/^\d{4,20}$/.test(id)) {
+      alert("工号必须是4-20位数字");
+      return;
+    }
+
+    ghApiGet(function (err, result) {
+      if (err) {
+        alert("读取失败：" + err.message);
+        return;
+      }
+      
+      var users = result.data.users || [];
+      if (users.indexOf(id) >= 0) {
+        alert("工号已存在");
+        return;
+      }
+      
+      users.push(id);
+      ghApiPut({ users: users }, result.sha, function (err2) {
+        if (err2) {
+          alert(err2.message);
+        } else {
+          alert("新增成功");
+          input.value = "";
+          renderList();
         }
-        if (err2) { toast("保存失败：" + err2.message); return; }
-        finishAdd(phone);
       });
     });
   }
 
-  function finishAdd(phone) {
-    var s = loadState();
-    if (!s.users) s.users = {};
-    s.users[phone] = { phone: phone, createdAt: Date.now() };
-    saveState(s);
-    var input = document.getElementById("new-gonghao");
-    if (input) input.value = "";
-    toast("已新增工号 " + phone);
-    renderList();
+  function deleteUser(id) {
+    ghApiGet(function (err, result) {
+      if (err) {
+        alert("读取失败：" + err.message);
+        return;
+      }
+      
+      var users = result.data.users || [];
+      var idx = users.indexOf(id);
+      if (idx < 0) {
+        alert("工号不存在");
+        return;
+      }
+      
+      users.splice(idx, 1);
+      ghApiPut({ users: users }, result.sha, function (err2) {
+        if (err2) {
+          alert(err2.message);
+        } else {
+          alert("删除成功");
+          renderList();
+        }
+      });
+    });
   }
 
-  function init() {
-    var btnLogin = document.getElementById("admin-login-btn");
-    var btnAdd = document.getElementById("admin-add");
-    var btnRefresh = document.getElementById("admin-refresh");
-    var btnClear = document.getElementById("admin-clear");
-    var btnLogout = document.getElementById("admin-logout");
-
-    var loginBox = document.getElementById("admin-login");
-    var panel = document.getElementById("admin-panel");
-
-    if (btnLogin) btnLogin.onclick = function () {
-      var pwd = document.getElementById("admin-pwd");
-      var tokenInput = document.getElementById("admin-token");
-      if (!pwd || pwd.value !== ADMIN_PWD) { toast("密码错误"); return; }
-      if (!tokenInput || !tokenInput.value.trim()) { toast("请输入 GitHub Token"); return; }
-      saveToken(tokenInput.value.trim());
-      if (loginBox) loginBox.style.display = "none";
-      if (panel) { panel.classList.remove("hidden"); panel.style.display = "block"; }
+  function checkLogin() {
+    var token = getToken();
+    var pwd = localStorage.getItem(STORAGE_KEY + "_admin_pwd");
+    log("checkLogin, has token:", !!token, "has pwd:", pwd === ADMIN_PWD);
+    
+    var loginSection = document.getElementById("login-section");
+    var adminSection = document.getElementById("admin-section");
+    
+    if (!loginSection || !adminSection) return;
+    
+    if (token && pwd === ADMIN_PWD) {
+      loginSection.style.display = "none";
+      adminSection.style.display = "block";
       renderList();
-    };
-
-    if (btnAdd) btnAdd.onclick = doAdd;
-    if (btnRefresh) btnRefresh.onclick = renderList;
-
-    if (btnClear) btnClear.onclick = function () {
-      if (!confirm("确认清空本机缓存的申请人信息？（不影响 GitHub 上的工号列表）")) return;
-      localStorage.removeItem(STORAGE_KEY);
-      toast("本机缓存已清空");
-      renderList();
-    };
-
-    if (btnLogout) btnLogout.onclick = function () {
-      if (loginBox) loginBox.style.display = "flex";
-      if (panel) { panel.classList.add("hidden"); panel.style.display = "none"; }
-      var pwd = document.getElementById("admin-pwd");
-      var tokenInput = document.getElementById("admin-token");
-      if (pwd) pwd.value = "";
-      if (tokenInput) tokenInput.value = "";
-    };
+    } else {
+      loginSection.style.display = "block";
+      adminSection.style.display = "none";
+    }
   }
 
-  if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", init); }
-  else { init(); }
+  function doLogin() {
+    var pwdInput = document.getElementById("admin-pwd");
+    var tokenInput = document.getElementById("admin-token");
+    
+    if (!pwdInput || !tokenInput) {
+      log("ERROR: login inputs not found!");
+      return;
+    }
+    
+    var pwd = pwdInput.value.trim();
+    var token = tokenInput.value.trim();
+    
+    log("doLogin called, pwd correct:", pwd === ADMIN_PWD, "token length:", token.length);
+    
+    if (pwd !== ADMIN_PWD) {
+      alert("密码错误");
+      return;
+    }
+    
+    if (!token) {
+      alert("请输入 GitHub Token");
+      return;
+    }
+    
+    if (!token.startsWith("ghp_")) {
+      alert("Token 格式错误，应以 ghp_ 开头");
+      return;
+    }
+    
+    saveToken(token);
+    localStorage.setItem(STORAGE_KEY + "_admin_pwd", pwd);
+    
+    log("Token saved, redirecting to admin...");
+    checkLogin();
+  }
+
+  function doLogout() {
+    saveToken("");
+    localStorage.removeItem(STORAGE_KEY + "_admin_pwd");
+    checkLogin();
+  }
+
+  function clearAll() {
+    if (!confirm("确定清空所有工号吗？此操作不可恢复！")) return;
+    
+    ghApiGet(function (err, result) {
+      if (err) {
+        alert("读取失败：" + err.message);
+        return;
+      }
+      
+      ghApiPut({ users: [] }, result.sha, function (err2) {
+        if (err2) {
+          alert(err2.message);
+        } else {
+          alert("已清空");
+          renderList();
+        }
+      });
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    log("DOMContentLoaded, initializing...");
+    
+    var btnLogin = document.getElementById("btn-login");
+    var btnLogout = document.getElementById("btn-logout");
+    var btnAdd = document.getElementById("btn-add");
+    var btnRefresh = document.getElementById("btn-refresh");
+    var btnClear = document.getElementById("btn-clear");
+    
+    log("Elements found:", {
+      btnLogin: !!btnLogin,
+      btnLogout: !!btnLogout,
+      btnAdd: !!btnAdd,
+      btnRefresh: !!btnRefresh,
+      btnClear: !!btnClear
+    });
+    
+    if (btnLogin) btnLogin.addEventListener("click", doLogin);
+    if (btnLogout) btnLogout.addEventListener("click", doLogout);
+    if (btnAdd) btnAdd.addEventListener("click", addUser);
+    if (btnRefresh) btnRefresh.addEventListener("click", renderList);
+    if (btnClear) btnClear.addEventListener("click", clearAll);
+    
+    checkLogin();
+  });
 })();

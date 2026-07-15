@@ -486,7 +486,7 @@
     // 打开弹窗
     function openPicker(target) {
       currentTarget = target;
-      selProv = ''; selCity = ''; selDist = '';
+      selProv = ''; selCity = '';
       selLevel = 'province';
       tabs.forEach(function(t) { t.classList.remove('is-on'); });
       document.querySelector('.region-tab[data-level="province"]').classList.add('is-on');
@@ -512,10 +512,6 @@
         cities.forEach(function(c) {
           html += '<div class="region-item" data-type="city" data-val="' + c + '">' + c + '</div>';
         });
-      } else if (level === 'county') {
-        // 区县数据未提供，显示提示
-        html = '<div style="padding:16px;color:#999;text-align:center;">该地区暂无详细区县数据，可直接选择</div>';
-        html += '<div class="region-item" data-type="county" data-val="">' + selCity + '（区县级）</div>';
       }
       listEl.innerHTML = html;
     }
@@ -527,28 +523,18 @@
       var type = item.dataset.type;
       var val = item.dataset.val;
       if (type === 'province') {
-        selProv = val; selCity = ''; selDist = '';
+        selProv = val; selCity = '';
         document.querySelector('.region-tab[data-level="city"]').classList.add('is-on');
         document.querySelector('.region-tab[data-level="province"]').classList.remove('is-on');
-        document.querySelector('.region-tab[data-level="county"]').classList.remove('is-on');
         selLevel = 'city';
         renderList('city');
       } else if (type === 'city') {
-        selCity = val; selDist = '';
-        document.querySelector('.region-tab[data-level="county"]').classList.add('is-on');
-        document.querySelector('.region-tab[data-level="city"]').classList.remove('is-on');
-        selLevel = 'county';
-        renderList('county');
-      } else if (type === 'county') {
-        selDist = val || selCity;
-        // 回填
+        selCity = val;
+        // 选中市后直接回填关闭（不要区县）
         if (currentTarget) {
-          var display = selProv + ' / ' + selCity;
-          if (selDist) display += ' / ' + selDist;
-          currentTarget.value = display;
+          currentTarget.value = selProv + ' / ' + selCity;
           currentTarget.dataset.prov = selProv;
           currentTarget.dataset.city = selCity;
-          currentTarget.dataset.dist = selDist;
         }
         closePicker();
       }

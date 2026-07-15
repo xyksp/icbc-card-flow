@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#e60012" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="申请信用卡" />
+  <title>工商银行</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+</head>
+<body>
+  <div class="phone-frame">
+    <main class="app" id="app">
+      <!-- 登录页 -->
+      <section class="page hidden" id="page-auth" data-step="auth">
+        <div class="auth-wrap">
+          <div class="auth-logo">
+            <div class="auth-logo-circle">ICBC</div>
+            <h2>中国工商银行</h2>
+          </div>
+          <div class="auth-form">
+            <div class="auth-row">
+              <label>工号</label>
+              <input type="text" id="login-phone" placeholder="请输入工号" maxlength="20" />
+            </div>
+            <button class="btn-primary" id="btn-login">登录</button>
+            <p class="auth-tip">请使用管理员已授权的工号登录</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 步骤1：卡片详情 -->
+      <section class="page hidden" id="page-card" data-step="card">
+        <header class="nav nav-minimal">
+          <button class="nav-minimal-btn is-disabled" data-nav-prev disabled>上一页</button>
+          <button class="nav-minimal-btn" data-nav-next>下一页</button>
+        </header>
+        <div class="scroll">
+          <div class="card-tabs">
+            <span class="card-tab is-on" data-card="standard">普卡</span>
+            <span class="card-tab" data-card="gold">金卡</span>
+            <span class="card-tab" data-card="platinum">白金卡</span>
+            <span class="card-tab" data-card="diamond">钻石卡</span>
+          </div>
+          <div class="credit-card" data-tier="standard" id="credit-card">
+            <div class="cc-top"><span class="cc-logo">ICBC</span><span class="cc-bank">中国工商银行</span></div>
+            <div class="cc-seal"><span class="cc-seal-circle"></span><span class="cc-seal-zodiac">鼠</span></div>
+            <div class="cc-bottom"><span class="cc-union">UnionPay</span><span class="cc-no">**** **** **** 2020</span></div>
+          </div>
+          <h2 class="card-name" id="card-name">工商银行国航牡丹卡</h2>
+          <p class="card-sub" id="card-sub">100元/年，消费5笔免次年年费</p>
+          <div class="card-tags"><span>中国银联</span><i></i><span id="card-tier-name">普卡</span><i></i><span>磁条+IC+非接触</span></div>
+          <div class="benefits">
+            <h3 class="block-title">卡片权益</h3>
+            <ul class="benefit-list">
+              <li>128元「盒马」年货礼</li>
+              <li>12306平台5折乘高铁</li>
+              <li>5折乘地铁</li>
+              <li>2折乘公交</li>
+              <li>1分钱骑单车</li>
+              <li>国潮经典卡面</li>
+            </ul>
+          </div>
+          <div class="notice-card">
+            <p class="notice-head">请准备好身份证，申请信用卡需扫描身份证</p>
+            <ol class="notice-list">
+              <li>需清晰展示人物照片和文字信息</li>
+              <li>边框保持完整</li>
+              <li>扫描身份证支持拍照实物或调用相册</li>
+            </ol>
+            <div class="id-sample">
+              <div class="id-sample-card"><span class="id-sample-avatar"></span>头像页</div>
+              <div class="id-sample-card"><span class="id-sample-emblem"></span>国徽页</div>
+            </div>
+          </div>
+          <label class="agree">
+            <input type="checkbox" id="agree-box" />
+            <span class="agree-text">本人已阅读并同意 <a href="#">《申请人声明》</a>，首次办卡客户在收到卡片后须本人携带该卡、身份证原件至办卡城市任一工行网点完成卡片启用。</span>
+          </label>
+        </div>
+        <div class="footer-bar"><button class="btn-primary is-disabled" id="btn-start" disabled>下一步</button></div>
+      </section>
+
+      <!-- 步骤2：拍身份证 -->
+      <section class="page hidden" id="page-capture" data-step="capture">
+        <header class="nav nav-minimal">
+          <button class="nav-minimal-btn" data-nav-prev>上一页</button>
+          <button class="nav-minimal-btn" data-nav-next>下一页</button>
+        </header>
+        <div class="sub-title">申请信用卡</div>
+        <p class="tip-text">请拍摄申请人的实体身份证</p>
+        <div class="capture-warning">确保照片完整，避免反光、遮挡</div>
+        <div class="scroll">
+          <div class="id-cards">
+            <div class="id-card placeholder" data-side="front" data-captured="false">
+              <div class="cam-icon">📷</div>
+              <div class="id-label">身份证头像页</div>
+              <input type="file" accept="image/*" capture="environment" class="id-cam-input" data-cam="front" />
+            </div>
+            <div class="id-card placeholder" data-side="back" data-captured="false">
+              <div class="cam-icon">📷</div>
+              <div class="id-label">身份证国徽页</div>
+              <input type="file" accept="image/*" capture="environment" class="id-cam-input" data-cam="back" />
+            </div>
+          </div>
+          <div class="ocr-status" id="ocr-status"></div>
+          <div class="confirm-box" id="capture-confirm" style="display:none;">
+            <h3 class="block-title">身份信息</h3>
+            <div class="form-list">
+              <div class="form-row"><label>姓名</label><input type="text" id="cf-name" placeholder="识别中..." /></div>
+              <div class="form-row"><label>身份证号</label><input type="text" id="cf-idno" placeholder="识别中..." /></div>
+              <div class="form-row"><label>起始日期</label><input type="text" id="cf-start" placeholder="识别中..." /></div>
+              <div class="form-row"><label>截止日期</label><input type="text" id="cf-end" placeholder="识别中..." /></div>
+              <div class="form-row"><label>手机号</label><input type="tel" id="cf-phone" placeholder="请输入手机号" /></div>
+              <div class="form-row verify">
+                <label>验证码</label>
+                <input type="text" id="cf-code" placeholder="请输入验证码" />
+                <button class="get-code" id="get-code">获取</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="footer-bar"><button class="btn-primary is-disabled" id="btn-captured" disabled>下一步</button></div>
+      </section>
+
+      <!-- 步骤3：个人信息 -->
+      <section class="page hidden" id="page-info" data-step="info">
+        <header class="nav nav-minimal">
+          <button class="nav-minimal-btn" data-nav-prev>上一页</button>
+          <button class="nav-minimal-btn" data-nav-next>下一页</button>
+        </header>
+        <div class="sub-title">申请信息填写</div>
+        <div class="steps">
+          <div class="step is-active"><span class="step-no">1</span>个人信息</div>
+          <div class="step-line"></div>
+          <div class="step"><span class="step-no">2</span>其他信息</div>
+        </div>
+        <div class="scroll">
+          <div class="form-list">
+            <div class="form-block">
+              <label class="block-label">婚姻状况</label>
+              <div class="tags" data-tags="marriage">
+                <span class="tag is-on">未婚</span><span class="tag">已婚</span><span class="tag">其他</span>
+              </div>
+            </div>
+            <div class="form-block">
+              <label class="block-label">受教育程度</label>
+              <div class="tags" data-tags="edu">
+                <span class="tag">博士及以上</span><span class="tag">硕士</span><span class="tag">本科</span><span class="tag">专科及以下</span>
+              </div>
+            </div>
+            <div class="form-block">
+              <label class="block-label">住宅状况</label>
+              <div class="tags" data-tags="house">
+                <span class="tag">全款购房</span><span class="tag">贷款购房</span><span class="tag">租房</span><span class="tag">其他</span>
+              </div>
+            </div>
+            <div class="form-row"><label>住宅所在地区</label><input id="region-picker" class="select-like" value="请选择" readonly /></div>
+            <div class="form-row"><label>住宅详细地址</label><input type="text" placeholder="请具体到门牌号且不少于3个字" /></div>
+          </div>
+        </div>
+        <div class="footer-bar dual">
+          <button class="btn-ghost">保存</button>
+          <button class="btn-primary" id="btn-to-other">下一步</button>
+        </div>
+      </section>
+
+      <!-- 步骤4：其他信息 -->
+      <section class="page hidden" id="page-other" data-step="other">
+        <header class="nav nav-minimal">
+          <button class="nav-minimal-btn" data-nav-prev>上一页</button>
+          <button class="nav-minimal-btn" data-nav-next>下一页</button>
+        </header>
+        <div class="sub-title">申请信息填写</div>
+        <div class="steps">
+          <div class="step"><span class="step-no">1</span>个人信息</div>
+          <div class="step-line"></div>
+          <div class="step is-active"><span class="step-no">2</span>其他信息</div>
+        </div>
+        <div class="scroll">
+          <div class="form-list">
+            <div class="form-block">
+              <label class="block-label">职业</label>
+              <div class="tags wrap" data-tags="job">
+                <span class="tag">公务员</span><span class="tag">事业单位员工</span><span class="tag is-on">公司职员</span>
+                <span class="tag">军人</span><span class="tag">自由职业者</span><span class="tag">务农</span>
+                <span class="tag">教师</span><span class="tag">医护</span><span class="tag">学生</span><span class="tag">金融单位员工</span>
+              </div>
+            </div>
+            <div class="form-block">
+              <label class="block-label">单位性质</label>
+              <div class="tags wrap" data-tags="unit">
+                <span class="tag">国有经济</span><span class="tag">集体经济</span><span class="tag">三资</span>
+                <span class="tag">私营/民营</span><span class="tag">股份制</span><span class="tag">其他</span>
+              </div>
+            </div>
+            <div class="form-block">
+              <label class="block-label">职务</label>
+              <div class="tags wrap" data-tags="title">
+                <span class="tag">科员级/职员</span><span class="tag">科级/部门经理</span><span class="tag">县处级/总经理</span><span class="tag">厅局级及以上/企业负责人</span><span class="tag is-on">其他</span>
+              </div>
+            </div>
+            <div class="form-row"><label>工作单位名称</label><input type="text" placeholder="请输入" /></div>
+            <div class="form-row"><label>单位所在地区</label><input id="unit-region-picker" class="select-like" value="请选择" readonly /></div>
+            <div class="form-row"><label>单位详细地址</label><input type="text" placeholder="请具体到门牌号且不少于3个字" /></div>
+            <div class="form-row"><label>单位电话</label><input type="text" placeholder="选填（地区号-单位电话-分机号）" /></div>
+            <div class="form-row"><label>税前年收入</label><input type="text" placeholder="0" style="flex:1;" /><span class="unit-fixed">万元</span></div>
+            <div class="form-row"><label>联系人姓名</label><input type="text" placeholder="请输入联系人姓名" /></div>
+            <div class="form-row"><label>联系人手机号</label><input type="tel" placeholder="请输入联系人手机号" /></div>
+            <div class="form-block">
+              <label class="block-label">与申请人关系</label>
+              <div class="tags wrap" data-tags="relation">
+                <span class="tag">父子</span><span class="tag">母子</span><span class="tag">兄弟姐妹</span><span class="tag">夫妻</span><span class="tag">朋友</span><span class="tag">同事</span>
+              </div>
+            </div>
+            <div class="form-row">
+              <label>卡片邮寄地址</label>
+              <div class="radio-group">
+                <span class="radio is-on" data-radio="mail">住宅地址</span>
+                <span class="radio" data-radio="mail">单位地址</span>
+              </div>
+            </div>
+            <div class="form-row switch-row">
+              <label>同步申请副卡<small>需要您提前准备副卡人身份证</small></label>
+              <span class="switch" data-switch></span>
+            </div>
+            <div class="form-block pay-block">
+              <label class="block-label">绑定支付平台<small>卡片启用成功后自动绑定所选快捷支付方式</small></label>
+              <span class="switch is-on" data-switch="pay"></span>
+              <div class="pay-icons">
+                <span class="pay-icon">微信</span>
+                <span class="pay-icon">支付宝</span>
+                <span class="pay-icon">京东</span>
+                <span class="pay-icon">抖音</span>
+                <span class="pay-icon">云闪付</span>
+                <span class="pay-icon">工银</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="footer-bar dual">
+          <button class="btn-ghost">保存</button>
+          <button class="btn-primary" id="btn-submit">提交申请</button>
+        </div>
+      </section>
+
+      <!-- 步骤5：审核中 -->
+      <section class="page hidden" id="page-review" data-step="review">
+        <header class="nav nav-minimal">
+          <button class="nav-minimal-btn" data-nav-prev>上一页</button>
+          <button class="nav-minimal-btn is-disabled" data-nav-next disabled>下一页</button>
+        </header>
+        <div class="review-wrap">
+          <div class="review-spinner">
+            <div class="review-ring"></div>
+            <div class="review-icon">⏳</div>
+          </div>
+          <h2 class="review-title">正在审核中</h2>
+          <p class="review-sub">我们正在为您核查资料，请稍候</p>
+        </div>
+      </section>
+
+      <!-- 步骤6：初审通过 -->
+      <section class="page hidden" id="page-done" data-step="done">
+        <header class="nav nav-minimal">
+          <button class="nav-minimal-btn is-disabled" data-nav-prev disabled>上一页</button>
+          <button class="nav-minimal-btn is-disabled" data-nav-next disabled>下一页</button>
+        </header>
+        <div class="done-wrap">
+          <div class="done-check">✓</div>
+          <h2 class="done-title">初审通过</h2>
+          <p class="done-sub">恭喜！您的信用卡申请已通过初审，额度已审批完成</p>
+          <div class="done-info">
+            <div><label>申请卡种</label><span id="done-card-name">—</span></div>
+            <div><label>信用额度</label><span class="done-limit" id="done-limit">—</span></div>
+            <div><label>申请编号</label><span id="apply-no">—</span></div>
+            <div><label>姓名</label><span id="done-user-name">—</span></div>
+            <div><label>身份证号</label><span id="done-user-idno">—</span></div>
+            <div><label>手机号</label><span id="done-user-phone">—</span></div>
+          </div>
+        </div>
+        <div class="footer-bar"><button class="btn-primary" id="btn-restart">激活寄卡</button></div>
+      </section>
+
+      <!-- 步骤7：年费缴纳 -->
+      <section class="page hidden" id="page-fee" data-step="fee">
+        <header class="nav nav-minimal">
+          <button class="nav-minimal-btn is-disabled" data-nav-prev disabled>上一页</button>
+          <button class="nav-minimal-btn is-disabled" data-nav-next disabled>下一页</button>
+        </header>
+        <div class="done-wrap">
+          <h2 class="done-title">年费缴纳</h2>
+          <p class="done-sub">请根据所选卡种缴纳年费</p>
+          <div class="done-info">
+            <div><label>所选卡种</label><span id="fee-card-name">—</span></div>
+            <div><label>年费说明</label><span id="fee-desc">—</span></div>
+          </div>
+          <div class="qr-wrap">
+            <p class="qr-tip">扫码缴纳年费</p>
+            <img src="./payment-qr.jpg" alt="缴费二维码" class="qr-img" />
+          </div>
+        </div>
+        <div class="footer-bar"><button class="btn-primary" id="btn-submit-fee">提交</button></div>
+      </section>
+
+      <!-- 步骤8：提交成功 -->
+      <section class="page hidden" id="page-success" data-step="success">
+        <header class="nav nav-minimal">
+          <button class="nav-minimal-btn is-disabled" data-nav-prev disabled>上一页</button>
+          <button class="nav-minimal-btn is-disabled" data-nav-next disabled>下一页</button>
+        </header>
+        <div class="done-wrap">
+          <div class="done-check">✓</div>
+          <h2 class="done-title">提交成功</h2>
+          <p class="done-sub">您的信用卡申请已提交成功</p>
+          <p class="done-sub" style="margin-top:12px;color:#666;">卡片预计3-15个工作日寄出</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 地区选择器弹窗 -->
+  <div class="region-modal" id="region-modal">
+    <div class="region-modal-head">
+      <span>选择地区</span>
+      <button class="region-modal-close" id="region-close">×</button>
+    </div>
+    <div class="region-tabs">
+      <span class="region-tab is-on" data-level="province">省份</span>
+      <span class="region-tab" data-level="city">城市</span>
+      <span class="region-tab" data-level="county">区县</span>
+    </div>
+    <div class="region-list" id="region-list"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('./service-worker.js').catch(function () {});
+      });
+    }
+  </script>
+</body>
+</html>

@@ -32,6 +32,8 @@
   var pendingApplyNo = null;
   var pendingUser = null;
   var toastTimer = null;
+  var isNavigating = false; // 防止重复导航
+
   function $(s, r) { return (r || document).querySelector(s); }
   function $all(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
   function toast(msg) {
@@ -45,13 +47,24 @@
   function getStepIndex(step) { return STEP_ORDER.indexOf(step); }
   
   function goStep(step) {
+    if (isNavigating) return;
+    isNavigating = true;
+    setTimeout(function () { isNavigating = false; }, 300);
+    
     if (step !== "review") {
       if (reviewTimer) { clearTimeout(reviewTimer); reviewTimer = null; }
     }
-    $all(".page").forEach(function (p) { p.classList.add("hidden"); });
+    
+    var pages = document.querySelectorAll(".page");
+    pages.forEach(function (p) { 
+      p.classList.add("hidden"); 
+      p.style.display = "none";
+    });
+    
     var el = document.getElementById("page-" + step);
-    if (!el) return;
+    if (!el) { isNavigating = false; return; }
     el.classList.remove("hidden");
+    el.style.display = "";
     app.scrollTop = 0;
     var sc = $(".scroll", el);
     if (sc) sc.scrollTop = 0;
@@ -126,7 +139,6 @@
   }
 
   function startReviewCountdown() {
-    // 无倒计时，仅延迟跳转
     reviewTimer = setTimeout(function () {
       reviewTimer = null;
       goStep("done");
@@ -143,7 +155,6 @@
     if (limitEl) limitEl.textContent = rollLimit(cardKey) + " 元";
     var noEl = document.getElementById("apply-no");
     if (noEl) noEl.textContent = pendingApplyNo || ("ICBC" + Date.now().toString().slice(-10));
-    // 显示用户填写的信息
     var nameEl = document.getElementById("done-user-name");
     var idnoEl = document.getElementById("done-user-idno");
     var phoneEl = document.getElementById("done-user-phone");
@@ -232,7 +243,7 @@
     btnCaptured.disabled = !ok;
     btnCaptured.classList.toggle("is-disabled", !ok);
     updateNavButtons("capture");
-    if (ok) confirmBox.style.display = "block";
+    if (ok && confirmBox) confirmBox.style.display = "block";
   }
 
   $all(".id-cam-input").forEach(function (input) {
@@ -255,7 +266,6 @@
         } else {
           backShot = true;
           backDataUrl = dataUrl;
-          if (frontShot) tryGenerateIdInfo();
         }
         refreshCaptureBtn();
       };
@@ -268,6 +278,7 @@
     if (typeof Tesseract === "undefined") {
       ocrStatus.textContent = "";
       toast("OCR库加载失败，请手动填写");
+      ensureIdInfo();
       fillIdInfoToForm();
       return;
     }
@@ -284,38 +295,39 @@
       var name = nameMatch ? nameMatch[0].replace(/姓\s*名\s*/, "").trim() : "";
       var idMatch = text.match(/\d{6}(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\d{3}[\dXx]/);
       var idNo = idMatch ? idMatch[0] : "";
-      var nameValid = /^[一-龥]{2,4}$/.test(name);
+      var nameValid = /^[\u4e00-\u9fa5]{2,4}$/.test(name);
       var idNoValid = /^(1[1-9]|[2-9]\d)\d{4}(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\d{3}[\dXx]$/.test(idNo);
+      
+      ensureIdInfo();
+      var u = getCurrentUser();
+      if (name && nameValid) {
+        u.idInfo.name = name;
+      }
+      if (idNo && idNoValid) {
+        u.idInfo.idNo = idNo;
+      }
+      saveState();
+      fillIdInfoToForm();
+      
       if (name && nameValid && idNo && idNoValid) {
-        var u = getCurrentUser();
-        if (u) {
-          if (!u.idInfo) u.idInfo = {};
-          u.idInfo.name = name;
-          u.idInfo.idNo = idNo;
-          saveState();
-        }
-        fillIdInfoToForm();
         toast("识别成功");
       } else {
-        fillIdInfoToForm();
         toast("识别失败，请手动填写");
       }
     }).catch(function (err) {
       ocrStatus.textContent = "";
       toast("识别出错，请手动填写");
+      ensureIdInfo();
       fillIdInfoToForm();
     });
   }
 
-    // generateMockIdInfo removed - no longer used
-
-  // generateIdNo removed
-function tryGenerateIdInfo() {
+  // 确保 idInfo 对象存在（不覆盖已有数据）
+  function ensureIdInfo() {
     var u = getCurrentUser();
-    if (u && frontShot && backShot) {
-      if (!u.idInfo) u.idInfo = { name: "", idNo: "", startDate: "", endDate: "" };
+    if (u && !u.idInfo) {
+      u.idInfo = { name: "", idNo: "", startDate: "", endDate: "", phone: "" };
       saveState();
-      fillIdInfoToForm();
     }
   }
 
@@ -331,19 +343,21 @@ function tryGenerateIdInfo() {
   // 验证码
   var getCode = document.getElementById("get-code");
   var codeTimer = null;
-  getCode.addEventListener("click", function () {
-    var phone = $("#cf-phone").value.trim();
-    if (!/^1\d{10}$/.test(phone)) { toast("请先输入正确的手机号"); return; }
-    var n = 60;
-    getCode.disabled = true;
-    getCode.textContent = n + "s";
-    codeTimer = setInterval(function () {
-      n--;
-      if (n <= 0) { clearInterval(codeTimer); getCode.disabled = false; getCode.textContent = "获取"; }
-      else getCode.textContent = n + "s";
-    }, 1000);
-    toast("验证码已发送");
-  });
+  if (getCode) {
+    getCode.addEventListener("click", function () {
+      var phone = $("#cf-phone").value.trim();
+      if (!/^1\d{10}$/.test(phone)) { toast("请先输入正确的手机号"); return; }
+      var n = 60;
+      getCode.disabled = true;
+      getCode.textContent = n + "s";
+      codeTimer = setInterval(function () {
+        n--;
+        if (n <= 0) { clearInterval(codeTimer); getCode.disabled = false; getCode.textContent = "获取"; }
+        else getCode.textContent = n + "s";
+      }, 1000);
+      toast("验证码已发送");
+    });
+  }
 
   // 标签/单选/开关
   $all("[data-tags]").forEach(function (group) {
@@ -371,20 +385,23 @@ function tryGenerateIdInfo() {
   });
 
   // 按钮跳转
-  btnStart.addEventListener("click", function () { if (btnStart.disabled) return; goStep("capture"); });
-  btnCaptured.addEventListener("click", function () { if (btnCaptured.disabled) return; goStep("info"); });
+  if (btnStart) btnStart.addEventListener("click", function () { if (btnStart.disabled) return; goStep("capture"); });
+  if (btnCaptured) btnCaptured.addEventListener("click", function () { if (btnCaptured.disabled) return; goStep("info"); });
 
-  document.getElementById("btn-to-other").addEventListener("click", function () { goStep("other"); });
-  document.getElementById("btn-submit").addEventListener("click", function () {
+  var btnToOther = document.getElementById("btn-to-other");
+  if (btnToOther) btnToOther.addEventListener("click", function () { goStep("other"); });
+  
+  var btnSubmit = document.getElementById("btn-submit");
+  if (btnSubmit) btnSubmit.addEventListener("click", function () {
     var no = "ICBC" + Date.now().toString().slice(-10);
     pendingApplyNo = no;
     pendingUser = getCurrentUser();
     goStep("review");
     toast("提交成功");
   });
-  // 激活寄卡按钮：保存表单数据后跳转年费缴纳页
-  document.getElementById("btn-restart").addEventListener("click", function () {
-    // 先把当前表单填写的姓名/身份证/手机号全部同步到 idInfo（支持手动输入的兜底）
+  
+  var btnRestart = document.getElementById("btn-restart");
+  if (btnRestart) btnRestart.addEventListener("click", function () {
     var u = getCurrentUser();
     if (u) {
       if (!u.idInfo) u.idInfo = {};
@@ -397,10 +414,11 @@ function tryGenerateIdInfo() {
     goStep("fee");
     fillFeeInfo();
   });
-  document.getElementById("btn-submit-fee").addEventListener("click", function () {
-    goStep("success");
-  });
-  // 离开身份证表单时同步姓名/身份证/手机号到 idInfo（支持手动输入兜底）
+  
+  var btnSubmitFee = document.getElementById("btn-submit-fee");
+  if (btnSubmitFee) btnSubmitFee.addEventListener("click", function () { goStep("success"); });
+  
+  // 离开身份证表单时同步到 idInfo
   ["cf-name", "cf-idno", "cf-phone"].forEach(function (fid) {
     var el = document.getElementById(fid);
     if (el) {
@@ -416,8 +434,6 @@ function tryGenerateIdInfo() {
       });
     }
   });
-
-  // 申请人声明点击无动作
 
   // 地区选择器
   var REGIONS = {
@@ -454,107 +470,74 @@ function tryGenerateIdInfo() {
       "青海省": ["西宁市","海东市","海北藏族自治州","黄南藏族自治州","海南藏族自治州","果洛藏族自治州","玉树藏族自治州","海西蒙古族藏族自治州"],
       "宁夏回族自治区": ["银川市","石嘴山市","吴忠市","固原市","中卫市"],
       "新疆维吾尔自治区": ["乌鲁木齐市","克拉玛依市","吐鲁番市","哈密市","昌吉回族自治州","博尔塔拉蒙古自治州","巴音郭楞蒙古自治州","阿克苏地区","克孜勒苏柯尔克孜自治州","喀什地区","和田地区","伊犁哈萨克自治州","塔城地区","阿勒泰地区"],
-      "台湾省": ["台北市","新北市","桃园市","台中市","台南市","高雄市","基隆市","新竹市","嘉义市"]
-    },
-    counties: {
-      "广州市": ["越秀区","海珠区","荔湾区","天河区","白云区","黄埔区","番禺区","花都区","南沙区","从化区","增城区"],
-      "深圳市": ["罗湖区","福田区","南山区","宝安区","龙岗区","盐田区","龙华区","坪山区","光明区"],
-      "佛山市": ["禅城区","南海区","顺德区","高明区","三水区"],
-      "东莞市": ["莞城街道","南城街道","东城街道","万江街道","石龙镇","虎门镇","中堂镇","麻涌镇","石碣镇","高埗镇","沙田镇","长安镇","寮步镇","大岭山镇","大朗镇","黄江镇","樟木头镇","谢岗镇","塘厦镇","清溪镇","凤岗镇","常平镇","桥头镇","横沥镇","东坑镇","企石镇","石排镇","茶山镇"],
-      "珠海市": ["香洲区","斗门区","金湾区"],
-      "中山市": ["石岐街道","东区街道","中山港街道","西区街道","南区街道","五桂山街道","小榄镇","黄圃镇","民众镇","东凤镇","古镇镇","沙溪镇","坦洲镇","港口镇","三角镇","横栏镇","南头镇","阜沙镇","三乡镇","板芙镇","神湾镇"],
-      "南京市": ["玄武区","秦淮区","建邺区","鼓楼区","浦口区","栖霞区","雨花台区","江宁区","六合区","溧水区","高淳区"],
-      "苏州市": ["虎丘区","吴中区","相城区","姑苏区","吴江区","工业园区","昆山市","常熟市","张家港市","太仓市"],
-      "杭州市": ["上城区","下城区","西湖区","拱墅区","江干区","滨江区","萧山区","余杭区","富阳区","临安区","桐庐县","淳安县","建德市"],
-      "宁波市": ["海曙区","江北区","北仑区","镇海区","鄞州区","奉化区","余姚市","慈溪市","象山县","宁海县"],
-      "温州市": ["鹿城区","龙湾区","瓯海区","洞头区","永嘉县","平阳县","苍南县","文成县","泰顺县","瑞安市","乐清市","龙港市"],
-      "成都市": ["锦江区","青羊区","金牛区","武侯区","成华区","龙泉驿区","青白江区","新都区","温江区","双流区","郫都区","新津区","金堂县","大邑县","蒲江县","都江堰市","彭州市","邛崃市","崇州市","简阳市"],
-      "武汉市": ["江岸区","江汉区","硚口区","汉阳区","武昌区","青山区","洪山区","东西湖区","汉南区","蔡甸区","江夏区","黄陂区","新洲区"],
-      "西安市": ["新城区","碑林区","莲湖区","灞桥区","未央区","雁塔区","阎良区","临潼区","长安区","高陵区","鄠邑区","蓝田县","周至县"],
-      "北京市": ["东城区","西城区","朝阳区","丰台区","石景山区","海淀区","门头沟区","房山区","通州区","顺义区","昌平区","大兴区","怀柔区","平谷区","密云区","延庆区"]
+      "台湾省": ["台北市","新北市","桃园市","台中市","台南市","高雄市"]
     }
   };
-;
 
-  var regionModal = document.getElementById("region-modal");
-  var regionList = document.getElementById("region-list");
-  var regionTabs = $all(".region-tab");
-  var currentRegionPicker = null;
-  var selectedProvince = "", selectedCity = "", selectedCounty = "";
+  var currentProvince = "", currentCity = "";
+  var pickerProv = document.getElementById("picker-prov");
+  var pickerCity = document.getElementById("picker-city");
+  var pickerDist = document.getElementById("picker-dist");
+  var regionDisplay = document.getElementById("region-display");
 
-  function showRegionPicker(pickerId) {
-    currentRegionPicker = pickerId;
-    selectedProvince = ""; selectedCity = ""; selectedCounty = "";
-    regionTabs.forEach(function (t, i) { t.classList.toggle("is-on", i === 0); });
-    renderRegionList("province");
-    regionModal.classList.add("show");
+  function buildProvPicker() {
+    if (!pickerProv) return;
+    var html = "<option value=\"\">选择省份</option>";
+    REGIONS.provinces.forEach(function (p) { html += "<option value=\"" + p + "\">" + p + "</option>"; });
+    pickerProv.innerHTML = html;
   }
 
-  function renderRegionList(level) {
-    regionList.innerHTML = "";
-    var items = [];
-    if (level === "province") items = REGIONS.provinces;
-    else if (level === "city") items = REGIONS.cities[selectedProvince] || [];
-    else if (level === "county") items = REGIONS.counties[selectedCity] || [];
-    
-    items.forEach(function (item) {
-      var div = document.createElement("div");
-      div.className = "region-item";
-      div.textContent = item;
-      div.addEventListener("click", function () {
-        if (level === "province") {
-          selectedProvince = item;
-          regionTabs[1].classList.add("is-on");
-          regionTabs[0].classList.remove("is-on");
-          renderRegionList("city");
-        } else if (level === "city") {
-          selectedCity = item;
-          var countyList = REGIONS.counties[selectedCity] || [];
-          if (countyList.length > 0) {
-            regionTabs[2].classList.add("is-on");
-            regionTabs[1].classList.remove("is-on");
-            renderRegionList("county");
-          } else {
-            var val = selectedProvince + " " + selectedCity;
-            var picker = document.getElementById(currentRegionPicker);
-            if (picker) picker.value = val;
-            regionModal.classList.remove("show");
-          }
-        } else {
-          selectedCounty = item;
-          var val = selectedProvince + " " + selectedCity + " " + selectedCounty;
-          var picker = document.getElementById(currentRegionPicker);
-          if (picker) picker.value = val;
-          regionModal.classList.remove("show");
-        }
-      });
-      regionList.appendChild(div);
+  function buildCityPicker(prov) {
+    if (!pickerCity) return;
+    var cities = REGIONS.cities[prov] || [];
+    var html = "<option value=\"\">选择城市</option>";
+    cities.forEach(function (c) { html += "<option value=\"" + c + "\">" + c + "</option>"; });
+    pickerCity.innerHTML = html;
+    pickerCity.disabled = !prov;
+    if (pickerDist) pickerDist.innerHTML = "<option value=\"\">选择区县</option>", pickerDist.disabled = true;
+  }
+
+  function buildDistPicker(city) {
+    if (!pickerDist) return;
+    var hasDists = currentProvince && REGIONS.cities[currentProvince];
+    var dists = hasDists ? (REGIONS.cities[currentProvince].indexOf(city) >= 0 ? [] : []) : [];
+    var html = "<option value=\"\">选择区县（选填）</option>";
+    dists.forEach(function (d) { html += "<option value=\"" + d + "\">" + d + "</option>"; });
+    pickerDist.innerHTML = html;
+    pickerDist.disabled = dists.length === 0;
+  }
+
+  function updateRegionDisplay() {
+    if (!regionDisplay) return;
+    var parts = [pickerProv, pickerCity, pickerDist].map(function (el) { return el ? el.value : ""; }).filter(Boolean);
+    regionDisplay.textContent = parts.length ? parts.join(" / ") : "请选择地区";
+  }
+
+  if (pickerProv) {
+    pickerProv.addEventListener("change", function () {
+      currentProvince = pickerProv.value;
+      currentCity = "";
+      buildCityPicker(currentProvince);
+      buildDistPicker("");
+      updateRegionDisplay();
     });
   }
-
-  regionTabs.forEach(function (tab) {
-    tab.addEventListener("click", function () {
-      var level = tab.dataset.level;
-      regionTabs.forEach(function (t) { t.classList.toggle("is-on", t === tab); });
-      renderRegionList(level);
+  if (pickerCity) {
+    pickerCity.addEventListener("change", function () {
+      currentCity = pickerCity.value;
+      buildDistPicker(currentCity);
+      updateRegionDisplay();
     });
-  });
-
-  document.getElementById("region-close").addEventListener("click", function () {
-    regionModal.classList.remove("show");
-  });
-
-  var regionPicker = document.getElementById("region-picker");
-  if (regionPicker) regionPicker.addEventListener("click", function () { showRegionPicker("region-picker"); });
-
-  var unitRegionPicker = document.getElementById("unit-region-picker");
-  if (unitRegionPicker) unitRegionPicker.addEventListener("click", function () { showRegionPicker("unit-region-picker"); });
-
-  // 入口 - 每次进入都从登录页开始
-  function init() {
-    state.currentUser = null;
-    if (history.replaceState) history.replaceState(null, "", "#auth");
-    goStep("auth");
   }
-  init();
+  if (pickerDist) {
+    pickerDist.addEventListener("change", updateRegionDisplay);
+  }
+
+  buildProvPicker();
+
+  // 初始化：检查 hash 并显示对应页面
+  var initStep = location.hash.slice(1) || "auth";
+  if (STEP_ORDER.indexOf(initStep) >= 0) {
+    goStep(initStep);
+  }
 })();

@@ -3,7 +3,6 @@
 
   var STORAGE_KEY = "icbc_card_flow_v1";
   var TOKEN_KEY = "icbc_gh_token";
-  var ADMIN_PWD = "admin123";
   var REPO = "xyksp/icbc-card-flow";
   var FILE_PATH = "data/users.json";
   var API_URL = "https://api.github.com/repos/" + REPO + "/contents/" + FILE_PATH;
@@ -25,9 +24,8 @@
 
   function b64DecodeUnicode(str) {
     try {
-      // Remove BOM if present (GitHub API sometimes returns UTF-8 BOM)
       var decoded = atob(str);
-      if (decoded.charCodeAt(0) === 0xFEFF || decoded.charCodeAt(0) === 0xEF && decoded.charCodeAt(1) === 0xBB && decoded.charCodeAt(2) === 0xBF) {
+      if (decoded.charCodeAt(0) === 0xFEFF || (decoded.charCodeAt(0) === 0xEF && decoded.charCodeAt(1) === 0xBB && decoded.charCodeAt(2) === 0xBF)) {
         decoded = decoded.replace(/^\uFEFF/, "").replace(/^\xEF\xBB\xBF/, "");
       }
       return decodeURIComponent(decoded.split("").map(function(c) {
@@ -127,8 +125,8 @@
   }
 
   function renderList() {
-    var listEl = document.getElementById("user-list");
-    var countEl = document.getElementById("user-count");
+    var listEl = document.getElementById("admin-list");
+    var countEl = document.getElementById("stat-total");
     if (!listEl) return;
 
     listEl.innerHTML = "<div style=\"color:#999\">加载中...</div>";
@@ -238,15 +236,14 @@
 
   function checkLogin() {
     var token = getToken();
-    var pwd = localStorage.getItem(STORAGE_KEY + "_admin_pwd");
-    log("checkLogin, has token:", !!token, "has pwd:", pwd === ADMIN_PWD);
+    log("checkLogin, has token:", !!token);
     
-    var loginSection = document.getElementById("login-section");
-    var adminSection = document.getElementById("admin-section");
+    var loginSection = document.getElementById("admin-login");
+    var adminSection = document.getElementById("admin-panel");
     
     if (!loginSection || !adminSection) return;
     
-    if (token && pwd === ADMIN_PWD) {
+    if (token) {
       loginSection.style.display = "none";
       adminSection.style.display = "block";
       renderList();
@@ -257,23 +254,16 @@
   }
 
   function doLogin() {
-    var pwdInput = document.getElementById("admin-pwd");
     var tokenInput = document.getElementById("admin-token");
     
-    if (!pwdInput || !tokenInput) {
-      log("ERROR: login inputs not found!");
+    if (!tokenInput) {
+      log("ERROR: login input not found!");
       return;
     }
     
-    var pwd = pwdInput.value.trim();
     var token = tokenInput.value.trim();
     
-    log("doLogin called, pwd correct:", pwd === ADMIN_PWD, "token length:", token.length);
-    
-    if (pwd !== ADMIN_PWD) {
-      alert("密码错误");
-      return;
-    }
+    log("doLogin called, token length:", token.length);
     
     if (!token) {
       alert("请输入 GitHub Token");
@@ -286,7 +276,6 @@
     }
     
     saveToken(token);
-    localStorage.setItem(STORAGE_KEY + "_admin_pwd", pwd);
     
     log("Token saved, redirecting to admin...");
     checkLogin();
@@ -294,7 +283,6 @@
 
   function doLogout() {
     saveToken("");
-    localStorage.removeItem(STORAGE_KEY + "_admin_pwd");
     checkLogin();
   }
 
@@ -321,11 +309,11 @@
   document.addEventListener("DOMContentLoaded", function () {
     log("DOMContentLoaded, initializing...");
     
-    var btnLogin = document.getElementById("btn-login");
-    var btnLogout = document.getElementById("btn-logout");
-    var btnAdd = document.getElementById("btn-add");
-    var btnRefresh = document.getElementById("btn-refresh");
-    var btnClear = document.getElementById("btn-clear");
+    var btnLogin = document.getElementById("admin-login-btn");
+    var btnLogout = document.getElementById("admin-logout");
+    var btnAdd = document.getElementById("admin-add");
+    var btnRefresh = document.getElementById("admin-refresh");
+    var btnClear = document.getElementById("admin-clear");
     
     log("Elements found:", {
       btnLogin: !!btnLogin,

@@ -274,12 +274,15 @@
   });
 
   function ocrIdCardFront(dataUrl) {
+    // 每次拍照前清空旧数据，避免残留历史信息
+    var _u = getCurrentUser();
+    if (_u && _u.idInfo) { _u.idInfo.name = ""; _u.idInfo.idNo = ""; saveState(); }
+    fillIdInfoToForm();
+
     ocrStatus.textContent = "正在识别身份证信息...";
     if (typeof Tesseract === "undefined") {
       ocrStatus.textContent = "";
       toast("OCR库加载失败，请手动填写");
-      ensureIdInfo();
-      fillIdInfoToForm();
       return;
     }
     Tesseract.recognize(dataUrl, "chi_sim+eng", {

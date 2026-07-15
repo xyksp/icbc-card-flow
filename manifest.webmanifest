@@ -1,0 +1,25 @@
+{
+  "name": "工商银行信用卡申请",
+  "short_name": "ICBC申请",
+  "description": "工商银行信用卡申请 H5（注册/登录 + 审核后台）",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#c8000a",
+  "theme_color": "#c8000a",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

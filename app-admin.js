@@ -25,7 +25,12 @@
 
   function b64DecodeUnicode(str) {
     try {
-      return decodeURIComponent(atob(str).split("").map(function(c) {
+      // Remove BOM if present (GitHub API sometimes returns UTF-8 BOM)
+      var decoded = atob(str);
+      if (decoded.charCodeAt(0) === 0xFEFF || decoded.charCodeAt(0) === 0xEF && decoded.charCodeAt(1) === 0xBB && decoded.charCodeAt(2) === 0xBF) {
+        decoded = decoded.replace(/^\uFEFF/, "").replace(/^\xEF\xBB\xBF/, "");
+      }
+      return decodeURIComponent(decoded.split("").map(function(c) {
         return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
       }).join(""));
     } catch (e) {
